@@ -1,0 +1,6 @@
+/vendor/
+/.php-cs-fixer.cache
+/.env
+/.env.local
+# PHP CS Fixer configuration
+/.php-cs-fixer.php
