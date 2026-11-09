@@ -1,6 +1,6 @@
 {
     "name": "matthieuthuetdev/simple-ai",
-    "description": "A simple PHP library to interact with OpenAI models.",
+    "description": "A PHP library for OpenAI text, image, and speech APIs.",
     "type": "library",
     "license": "MIT",
     "require": {

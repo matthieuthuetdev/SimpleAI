@@ -1,14 +1,14 @@
 # SimpleAI
 
-SimpleAI est une petite librairie PHP qui envoie une question à l'API Responses d'OpenAI et retourne directement le texte généré. Elle prend en charge la requête HTTP, l'authentification, le JSON et l'extraction du texte.
+SimpleAI est une bibliothèque PHP pour utiliser plusieurs fonctions de l'API OpenAI : conversation, génération et modification d'images, analyse d'images et synthèse vocale.
 
-SimpleAI est une librairie indépendante, non affiliée à OpenAI. Son utilisation nécessite une clé API OpenAI et entraîne une facturation API distincte d'un abonnement ChatGPT.
+SimpleAI est indépendante et n'est pas affiliée à OpenAI. Son utilisation nécessite une clé API OpenAI et peut entraîner une facturation distincte d'un abonnement ChatGPT.
 
 ## Prérequis
 
 - PHP 8.1 ou supérieur
 - Composer
-- Une clé API OpenAI et l'accès à un modèle compatible avec l'API Responses
+- Une clé API OpenAI avec accès aux modèles et fonctions utilisés
 
 ## Installation
 
@@ -18,78 +18,131 @@ composer require matthieuthuetdev/simple-ai
 
 ## Configuration
 
-Créez une clé sur la plateforme OpenAI. Pour le client de démonstration, renseignez `OPENAI_API_KEY` et `AI_MODEL` dans `.env.local`. Ce fichier est ignoré par Git. `.env.example` fournit un modèle sans clé réelle. La librairie elle-même ne charge pas automatiquement les fichiers `.env`.
+La bibliothèque reçoit la clé API dans chaque appel. Elle ne lit pas automatiquement les fichiers `.env`.
+
+```php
+$apiKey = getenv('OPENAI_API_KEY');
+```
 
 Ne placez jamais une clé réelle dans le code source ni dans un dépôt partagé.
 
-## Utilisation
+## Conversation
 
 ```php
-<?php
-
-require_once __DIR__ . '/vendor/autoload.php';
-
 use SimpleAI\OpenAI;
 
-$question = 'Explique-moi le fonctionnement de Symfony.';
-$model = 'gpt-5';
-$apiKey = getenv('OPENAI_API_KEY');
+$answer = OpenAI::ask(
+    'Explique-moi le fonctionnement de Symfony.',
+    'gpt-5',
+    $apiKey,
+);
+```
 
-if ($apiKey === false || $apiKey === '') {
-    throw new RuntimeException('La variable OPENAI_API_KEY est requise.');
-}
+Le modèle est transmis tel quel à OpenAI. Sa disponibilité dépend de votre compte.
 
-try {
-    $reponse = OpenAI::ask($question, $model, $apiKey);
-    echo $reponse;
-} catch (Throwable $e) {
-    echo 'Erreur : ' . $e->getMessage();
+## Générer une image à partir d'un texte
+
+`generateImage()` renvoie les octets de l'image PNG. Vous pouvez les écrire dans un fichier :
+
+```php
+$image = OpenAI::generateImage(
+    'Un renard roux lisant un livre dans une bibliothèque, style aquarelle',
+    $apiKey,
+);
+
+file_put_contents(__DIR__ . '/renard.png', $image);
+```
+
+Le modèle par défaut est `gpt-image-2.6-flare`. Vous pouvez choisir un autre modèle compatible en troisième argument.
+
+## Modifier une image avec un texte
+
+`editImage()` prend le chemin d'une image locale et une consigne de modification. Il accepte les fichiers PNG, JPEG et WEBP de moins de 50 Mo, puis renvoie les octets PNG de l'image modifiée.
+
+```php
+$editedImage = OpenAI::editImage(
+    __DIR__ . '/photo.png',
+    'Remplace le ciel par un coucher de soleil rose',
+    $apiKey,
+);
+
+file_put_contents(__DIR__ . '/photo-modifiee.png', $editedImage);
+```
+
+## Analyser une image et obtenir du texte
+
+`analyzeImage()` répond à une question à partir d'une image. L'image peut être un chemin local, une URL HTTP(S) ou une URL de données base64. Le modèle doit accepter les images en entrée.
+
+```php
+$description = OpenAI::analyzeImage(
+    __DIR__ . '/photo.png',
+    'Décris cette image en deux phrases.',
+    'gpt-5',
+    $apiKey,
+);
+```
+
+Les images envoyées à un modèle de vision peuvent entraîner des frais de jetons d'entrée.
+
+## Convertir du texte en voix
+
+`availableVoices()` affiche les voix intégrées disponibles. `textToSpeech()` reçoit le texte, le nom de voix et la clé API, puis renvoie les octets audio (MP3 par défaut).
+
+```php
+print_r(OpenAI::availableVoices());
+
+$audio = OpenAI::textToSpeech(
+    'Bonjour, ceci est un exemple de synthèse vocale.',
+    'coral',
+    $apiKey,
+);
+
+file_put_contents(__DIR__ . '/bonjour.mp3', $audio);
+```
+
+Les voix intégrées sont : `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`, `nova`, `onyx`, `sage`, `shimmer`, `verse`, `marin` et `cedar`. Elles sont optimisées pour l'anglais, mais le modèle accepte plusieurs langues. Indiquez clairement aux utilisateurs que la voix entendue est générée par une IA.
+
+Pour contrôler le ton, vous pouvez fournir les instructions en sixième argument :
+
+```php
+$audio = OpenAI::textToSpeech(
+    'Bonjour, ceci est un exemple de synthèse vocale.',
+    'coral',
+    $apiKey,
+    'gpt-4o-mini-tts',
+    'mp3',
+    'Parle avec un ton chaleureux et calme.',
+);
+```
+
+### Générer un échantillon pour chaque voix
+
+`generateVoiceSamples()` prend la phrase de test en paramètre et renvoie un tableau associant chaque nom de voix à ses octets audio. Cette méthode effectue **13 requêtes facturables**, une par voix.
+
+```php
+$samples = OpenAI::generateVoiceSamples(
+    'Bonjour, ceci est un test de voix.',
+    $apiKey,
+);
+
+foreach ($samples as $voice => $audio) {
+    file_put_contents(__DIR__ . '/voix-' . $voice . '.mp3', $audio);
 }
 ```
 
-`$model` est transmis tel quel à OpenAI. Aucun modèle n'est supposé être disponible pour tous les comptes.
-
-## Démonstration dans le terminal
-
-Renseignez `OPENAI_API_KEY` et un modèle autorisé pour votre compte dans `.env.local`, puis lancez :
-
-```bash
-php chat.php
-```
-
-Saisissez une question à chaque invite. Entrez `q`, `quit` ou `exit` pour terminer. Le client affiche la réponse, puis propose une nouvelle question.
+> **À prévoir :** OpenAI a annoncé l'arrêt de l'endpoint `/v1/audio/speech` et de ses modèles actuels le 6 janvier 2027. Consultez le [guide TTS officiel](https://developers.openai.com/api/docs/guides/text-to-speech) avant de l'utiliser après cette date.
 
 ## Erreurs
 
-`OpenAI::ask()` lève une `InvalidArgumentException` si la question, le modèle ou la clé est vide, et une `RuntimeException` dans les cas suivants :
+Les paramètres obligatoires invalides provoquent une `InvalidArgumentException`. Les erreurs réseau, les réponses HTTP en erreur et les réponses OpenAI non exploitables provoquent une `RuntimeException`. Les messages ne contiennent pas la clé API ni le contenu détaillé renvoyé par le serveur.
 
-- erreur réseau ou délai d'attente;
-- identifiants ou permissions refusés (HTTP 401/403);
-- requête ou modèle invalide (HTTP 400/404);
-- limite de débit ou quota atteint (HTTP 429);
-- erreur serveur (HTTP 5xx) ou autre statut HTTP d'erreur;
-- JSON invalide, réponse incomplète ou absence de texte exploitable.
+## Coûts
 
-Les messages d'erreur ne reprennent pas la clé API ni le contenu détaillé retourné par le serveur.
-
-## Modèles et coûts
-
-Les modèles accessibles et leurs fonctionnalités dépendent du compte OpenAI. Consultez le [catalogue des modèles](https://developers.openai.com/api/docs/models) et vérifiez les droits du projet qui détient la clé. Un modèle non accessible fera l'objet d'une erreur API.
-
-L'utilisation de l'API est facturée séparément de ChatGPT. Les tarifs varient selon le modèle, les jetons d'entrée et de sortie et les fonctionnalités utilisées; vérifiez les [tarifs API actuels](https://openai.com/api/pricing/) avant tout déploiement. Cette librairie ne met pas en place de nouvelles tentatives automatiques.
+Les coûts dépendent des modèles, des images, du nombre de jetons et de la durée audio. Consultez les [tarifs API actuels](https://openai.com/api/pricing/) avant tout déploiement.
 
 ## Vérification du style
-
-Depuis une copie du dépôt :
 
 ```bash
 composer install
 composer style
 ```
-
-## Publication sur Packagist
-
-1. Publiez le dépôt Git contenant `composer.json` et vérifiez le nom `matthieuthuetdev/simple-ai`.
-2. Créez une version en ajoutant un tag Git, par exemple `git tag v1.0.0`, puis poussez le tag.
-3. Soumettez le dépôt sur Packagist, ou activez sa mise à jour automatique via le webhook Packagist.
-4. Vérifiez la page du package et validez l'installation avec `composer require matthieuthuetdev/simple-ai`.
